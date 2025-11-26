@@ -5,6 +5,7 @@ import java.util.Scanner;
 public class SystemMonitorCli {
 
   private static final long BYTES_PER_MB = 1024L * 1024L;
+  private static final long BYTES_PER_GB = 1024L * 1024L * 1024L;
 
   public static void main(String[] args) {
     SystemMonitorCli app = new SystemMonitorCli();
@@ -90,7 +91,28 @@ public class SystemMonitorCli {
   }
 
   private void showDiskInfo() {
-    System.out.println("[TODO] Disk info will be shown here.");
+    System.out.println("--- Disk Usage ---");
+
+    java.io.File[] roots = java.io.File.listRoots();
+
+    if (roots == null || roots.length == 0) {
+      System.out.println("No filesystem roots found.");
+      return;
+    }
+
+    for (java.io.File root : roots) {
+      long totalSpace = root.getTotalSpace();
+      long freeSpace = root.getFreeSpace();
+      long usableSpace = root.getUsableSpace();
+      long usedSpace = totalSpace - freeSpace;
+
+      System.out.println("Path: " + root.getAbsolutePath());
+      System.out.println("  Total space:  " + bytesToGb(totalSpace) + " GB");
+      System.out.println("  Used space:   " + bytesToGb(usedSpace) + " GB");
+      System.out.println("  Free space:   " + bytesToGb(freeSpace) + " GB");
+      System.out.println("  Usable space: " + bytesToGb(usableSpace) + " GB");
+      System.out.println();
+    }
   }
 
   private void runHealthCheck() {
@@ -103,5 +125,9 @@ public class SystemMonitorCli {
 
   private long bytesToMb(long bytes) {
     return bytes / BYTES_PER_MB;
+  }
+
+  private long bytesToGb(long bytes) {
+    return bytes / BYTES_PER_GB;
   }
 }
