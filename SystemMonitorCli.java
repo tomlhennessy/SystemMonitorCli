@@ -1,6 +1,10 @@
+import java.lang.management.ManagementFactory;
+import java.lang.management.OperatingSystemMXBean;
 import java.util.Scanner;
 
 public class SystemMonitorCli {
+
+  private static final long BYTES_PER_MB = 1024L * 1024L;
 
   public static void main(String[] args) {
     SystemMonitorCli app = new SystemMonitorCli();
@@ -45,11 +49,44 @@ public class SystemMonitorCli {
   }
 
   private void showCpuInfo() {
-    System.out.println("[TODO] CPU info will be shown here.");
+    System.out.println("--- CPU Info ---");
+
+    int cores = Runtime.getRuntime().availableProcessors();
+    System.out.println("Available processors (logical cores): " + cores);
+
+    OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
+    double systemLoad = osBean.getSystemLoadAverage();
+
+    if (systemLoad < 0.0) {
+      System.out.println("System load average (1 min): not available on this OS.");
+    } else {
+      System.out.println("System load average (1 min) " + formatDouble(systemLoad));
+
+      double approxCpuUsage = (systemLoad / cores) * 100.0;
+      if (approxCpuUsage < 0.0) {
+        approxCpuUsage = 0.0;
+      }
+      System.out.println(
+        "Approx CPU usage (1 min): " + formatDouble(approxCpuUsage) + "% (rough estimate)"
+      );
+    }
+
   }
 
   private void showMemoryInfo() {
-    System.out.println("[TODO] Memory info will be shown here.");
+    System.out.println("--- Memory Info (JVM heap) ---");
+
+    Runtime runtime = Runtime.getRuntime();
+
+    long totalMemory = runtime.totalMemory();
+    long freeMemory = runtime.freeMemory();
+    long usedMemory = totalMemory - freeMemory;
+    long maxMemory = runtime.maxMemory();
+
+    System.out.println("Used memory: " + bytesToMb(usedMemory) + " MB");
+    System.out.println("Free memory: " + bytesToMb(freeMemory) + " MB");
+    System.out.println("Total memory: " + bytesToMb(totalMemory) + " MB");
+    System.out.println("Max memory: " + bytesToMb(maxMemory) + " MB");
   }
 
   private void showDiskInfo() {
@@ -58,5 +95,13 @@ public class SystemMonitorCli {
 
   private void runHealthCheck() {
     System.out.println("[TODO] Health check results will be shown here.");
+  }
+
+  private String formatDouble(double value) {
+    return String.format("%.2f", value);
+  }
+
+  private long bytesToMb(long bytes) {
+    return bytes / BYTES_PER_MB;
   }
 }
