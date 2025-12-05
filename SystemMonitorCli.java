@@ -7,6 +7,10 @@ public class SystemMonitorCli {
   private static final long BYTES_PER_MB = 1024L * 1024L;
   private static final long BYTES_PER_GB = 1024L * 1024L * 1024L;
 
+  private static final double CPU_USAGE_WARN = 75.0;          // percent
+  private static final long FREE_MEMORY_WARN_MB = 256L;       // MB
+  private static final double DISK_FREE_WARN_PERCENT = 15.0;  // percent
+
   public static void main(String[] args) {
     SystemMonitorCli app = new SystemMonitorCli();
     app.run();
@@ -116,7 +120,96 @@ public class SystemMonitorCli {
   }
 
   private void runHealthCheck() {
-    System.out.println("[TODO] Health check results will be shown here.");
+    System.out.println("--- Quick Health Check ---");
+
+    boolean healthy = true;
+
+    // CPU check
+    int cores = Runtime.getRuntime().availableProcessors();
+    OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
+    double systemLoad = osBean.getSystemLoadAverage();
+
+    if (systemLoad < 0.0) {
+      System.out.println("CPU: UNKNOWN (system load not available on this os");
+    } else {
+      double approxCpuUsage = (systemLoad / cores) * 100.0;
+      if (approxCpuUsage < 0.0) {
+        approxCpuUsage = 0.0;
+      }
+
+      System.out.println("CPU: " + formatDouble(approxCpuUsage) + "% (1 min average)");
+
+      if (approxCpuUsage > CPU_USAGE_WARN) {
+        System.out.println("Status: WARN - CPU usage above " + CPU_USAGE_WARN + "%");
+        healthy = false;
+      } else {
+        System.out.println("  Status: OK");
+      }
+    }
+
+    Runtime runtime = Runtime.getRuntime();
+    long totalMemory = runtime.totalMemory();
+    long freeMemory = runtime.freeMemory();
+    long usedMemory = totalMemory - freeMemory;
+    long maxMemory = runtime.maxMemory();
+
+    long remainingMemory = maxMemory - usedMemory;
+    if (remainingMemory < 0L) {
+      remainingMemory = 0L;
+    }
+    long remainingMemoryMb = bytesToMb(remainingMemory);
+
+    System.out.println("Memory: used " + bytesToMb(usedMemory) + " MB of max " + bytesToMb(maxMemory) + " MB");
+
+    if (remainingMemoryMb < FREE_MEMORY_WARN_MB) {
+      System.out.println("  Status: WARN - less than " + FREE_MEMORY_WARN_MB + " MB free in JVM heap");
+      healthy = false;
+    } else {
+      System.out.println("  Status: OK");
+    }
+
+    // Disk check (minimum free percent across roots)
+    java.io.File[] roots = java.io.File.listRoots();
+    if (roots == null || roots.length == 0) {
+      System.out.println("Disk: UNKNOWN (no filesystem roots found)");
+    } else {
+      double minFreePercent = 100.0;
+      boolean hasDiskData = false;
+
+      for (java.io.File root : roots) {
+        long totalSpace = root.getTotalSpace();
+        long freeSpace = root.getFreeSpace();
+
+        if (totalSpace > 0L) {
+          double freePercent = (freeSpace * 100.0) / (double) totalSpace;
+          if (freePercent < minFreePercent) {
+            minFreePercent = freePercent;
+          }
+          hasDiskData = true;
+        }
+      }
+      if (!hasDiskData) {
+        System.out.println("Disk: UNKNOWN (no usable disk data)");
+      } else {
+        System.out.println("Disk: minimum free space across roots: "
+            + formatDouble(minFreePercent) + "%");
+
+        if (minFreePercent < DISK_FREE_WARN_PERCENT) {
+          System.out.println("  Status: WARN - disk free space below "
+              + DISK_FREE_WARN_PERCENT + "%");
+          healthy = false;
+        } else {
+          System.out.println("  Status: OK");
+        }
+      }
+    }
+
+    // Overall summary
+    if (healthy) {
+      System.out.println("Overall: OK - system looks healthy by basic checks.");
+    } else {
+      System.out.println("Overall: WARN - one or more checks reported warnings.");
+    }
   }
 
   private String formatDouble(double value) {
