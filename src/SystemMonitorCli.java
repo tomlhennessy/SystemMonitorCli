@@ -175,11 +175,11 @@ public class SystemMonitorCli {
 
     if (remainingMemoryMb < FREE_MEMORY_WARN_MB) {
       System.out.println("  Status: WARN - less than " + FREE_MEMORY_WARN_MB + " MB free in JVM heap");
-      logBuilder.append("MemoryRemaining=").append(remainingMemoryMb).append("MB(OK); ");
+      logBuilder.append("MemoryRemaining=").append(remainingMemoryMb).append("MB(WARN); ");
       healthy = false;
     } else {
       System.out.println("  Status: OK");
-      logBuilder.append("MemoryRemaining=").append(remainingMemoryMb).append("MB(WARN); ");
+      logBuilder.append("MemoryRemaining=").append(remainingMemoryMb).append("MB(OK); ");
     }
 
     // Disk check (minimum free percent across roots)
