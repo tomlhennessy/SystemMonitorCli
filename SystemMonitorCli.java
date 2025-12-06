@@ -1,5 +1,9 @@
+import java.io.FileWriter;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
+import java.time.format.DateTimeFormatter;
+import java.time.LocalDateTime;
 import java.util.Scanner;
 
 public class SystemMonitorCli {
@@ -10,6 +14,9 @@ public class SystemMonitorCli {
   private static final double CPU_USAGE_WARN = 75.0;          // percent
   private static final long FREE_MEMORY_WARN_MB = 256L;       // MB
   private static final double DISK_FREE_WARN_PERCENT = 15.0;  // percent
+
+  private static final String LOG_FILE_NAME = "system-monitor.log";
+  private static final DateTimeFormatter LOG_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
   public static void main(String[] args) {
     SystemMonitorCli app = new SystemMonitorCli();
@@ -123,6 +130,7 @@ public class SystemMonitorCli {
     System.out.println("--- Quick Health Check ---");
 
     boolean healthy = true;
+    StringBuilder logBuilder = new StringBuilder("HealthCheck: ");
 
     // CPU check
     int cores = Runtime.getRuntime().availableProcessors();
@@ -131,6 +139,7 @@ public class SystemMonitorCli {
 
     if (systemLoad < 0.0) {
       System.out.println("CPU: UNKNOWN (system load not available on this os");
+      logBuilder.append("CPU=UNKNOWN; ");
     } else {
       double approxCpuUsage = (systemLoad / cores) * 100.0;
       if (approxCpuUsage < 0.0) {
@@ -141,12 +150,15 @@ public class SystemMonitorCli {
 
       if (approxCpuUsage > CPU_USAGE_WARN) {
         System.out.println("Status: WARN - CPU usage above " + CPU_USAGE_WARN + "%");
+        logBuilder.append("CPU=").append(formatDouble(approxCpuUsage)).append("%(WARN); ");
         healthy = false;
       } else {
         System.out.println("  Status: OK");
+        logBuilder.append("CPU=").append(formatDouble(approxCpuUsage)).append("%(OK);");
       }
     }
 
+    // Memory check (JVM heap)
     Runtime runtime = Runtime.getRuntime();
     long totalMemory = runtime.totalMemory();
     long freeMemory = runtime.freeMemory();
@@ -163,15 +175,18 @@ public class SystemMonitorCli {
 
     if (remainingMemoryMb < FREE_MEMORY_WARN_MB) {
       System.out.println("  Status: WARN - less than " + FREE_MEMORY_WARN_MB + " MB free in JVM heap");
+      logBuilder.append("MemoryRemaining=").append(remainingMemoryMb).append("MB(OK); ");
       healthy = false;
     } else {
       System.out.println("  Status: OK");
+      logBuilder.append("MemoryRemaining=").append(remainingMemoryMb).append("MB(WARN); ");
     }
 
     // Disk check (minimum free percent across roots)
     java.io.File[] roots = java.io.File.listRoots();
     if (roots == null || roots.length == 0) {
       System.out.println("Disk: UNKNOWN (no filesystem roots found)");
+      logBuilder.append("Disk=UNKNOWN; ");
     } else {
       double minFreePercent = 100.0;
       boolean hasDiskData = false;
@@ -190,6 +205,7 @@ public class SystemMonitorCli {
       }
       if (!hasDiskData) {
         System.out.println("Disk: UNKNOWN (no usable disk data)");
+        logBuilder.append("Disk=UNKNOWN; ");
       } else {
         System.out.println("Disk: minimum free space across roots: "
             + formatDouble(minFreePercent) + "%");
@@ -197,9 +213,11 @@ public class SystemMonitorCli {
         if (minFreePercent < DISK_FREE_WARN_PERCENT) {
           System.out.println("  Status: WARN - disk free space below "
               + DISK_FREE_WARN_PERCENT + "%");
+          logBuilder.append("DiskMinFree=").append(formatDouble(minFreePercent)).append("%(WARN); ");
           healthy = false;
         } else {
           System.out.println("  Status: OK");
+          logBuilder.append("DiskMinFree=").append(formatDouble(minFreePercent)).append("%(OK); ");
         }
       }
     }
@@ -207,10 +225,15 @@ public class SystemMonitorCli {
     // Overall summary
     if (healthy) {
       System.out.println("Overall: OK - system looks healthy by basic checks.");
+      logBuilder.append("Overall=OK");
+      logInfo(logBuilder.toString());
     } else {
       System.out.println("Overall: WARN - one or more checks reported warnings.");
+      logBuilder.append("Overall=WARN");
+      logWarn(logBuilder.toString());
     }
   }
+
 
   private String formatDouble(double value) {
     return String.format("%.2f", value);
@@ -222,5 +245,24 @@ public class SystemMonitorCli {
 
   private long bytesToGb(long bytes) {
     return bytes / BYTES_PER_GB;
+  }
+
+  private void logInfo(String message) {
+    writeLog("INFO", message);
+  }
+
+  private void logWarn(String message) {
+    writeLog("WARN", message);
+  }
+
+  private void writeLog(String level, String message) {
+    String timestamp = LocalDateTime.now().format(LOG_TIME_FORMAT);
+    String line = timestamp + " [" + level + "] " + message + System.lineSeparator();
+
+    try (FileWriter writer = new FileWriter(LOG_FILE_NAME, true)) {
+      writer.write(line);
+    } catch (IOException e) {
+      System.out.println("Failed to write log file: " + e.getMessage());
+    }
   }
 }
